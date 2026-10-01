@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#101522">
+  <title>Mini Arena Online</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #101522;
+      color: #fff;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      display: flex;
+      justify-content: center;
+      overscroll-behavior: none;
+    }
+    button, input { font: inherit; }
+    .wrap { width: min(720px, 100%); padding: 14px; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+    .top { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 10px; }
+    h1 { font-size: 20px; margin: 0; }
+    .sub { opacity: .7; font-size: 13px; margin-top: 2px; }
+    .stats { text-align: right; font-weight: 700; font-size: 14px; white-space: nowrap; }
+    .menu { display: flex; gap: 7px; margin-bottom: 10px; }
+    .menu input {
+      flex: 1;
+      min-width: 0;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid #34405a;
+      background: #171f2e;
+      color: #fff;
+      font-size: 16px;
+      outline: none;
+    }
+    .menu input:focus { border-color: #6d8cff; }
+    .menu button, .actions button, .controls button {
+      border: 1px solid #34405a;
+      border-radius: 14px;
+      background: #1b2435;
+      color: #fff;
+      font-weight: 700;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .menu button { padding: 0 16px; background: #6d8cff; border-color: transparent; }
+    button:disabled { opacity: .45; }
+    button:active { transform: scale(.95); }
+    #arena {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      overflow: hidden;
+      border: 1px solid #34405a;
+      border-radius: 18px;
+      background: radial-gradient(circle, #273651, #111827 70%);
+      touch-action: none;
+      user-select: none;
+    }
+    #arena::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+      background-size: 10% 10%;
+      pointer-events: none;
+    }
+    .entity {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      display: grid;
+      place-items: center;
+      user-select: none;
+      pointer-events: none;
+      z-index: 3;
+    }
+    .player { width: 38px; height: 38px; border-radius: 12px; background: #6d8cff; font-size: 22px; z-index: 5; }
+    .other { width: 36px; height: 36px; border-radius: 12px; background: #8d6de8; font-size: 20px; z-index: 4; }
+    .enemy { width: 32px; height: 32px; border-radius: 50%; background: #d85b68; font-size: 17px; z-index: 3; }
+    .coin { width: 18px; height: 18px; border-radius: 50%; background: #e7ca58; color: #4b3b0b; font-size: 11px; z-index: 2; }
+    .hp { position: absolute; left: 50%; top: 43px; transform: translateX(-50%); width: 40px; height: 5px; background: #111; border-radius: 5px; overflow: hidden; }
+    .hp i { display: block; height: 100%; background: #61d48b; width: 100%; transition: width .1s linear; }
+    .controls { display: grid; grid-template-columns: repeat(3, 54px); grid-template-rows: repeat(2, 54px); gap: 6px; justify-content: center; margin-top: 12px; }
+    .controls button { width: 54px; height: 54px; font-size: 21px; }
+    .empty { visibility: hidden; }
+    .actions { display: flex; justify-content: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .actions button { min-width: 48px; min-height: 48px; padding: 0 14px; font-size: 14px; }
+    #status { text-align: center; margin-top: 9px; min-height: 20px; font-size: 13px; opacity: .85; }
+    .hint { text-align: center; margin-top: 3px; font-size: 12px; opacity: .55; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="top">
+      <div>
+        <h1>⚔️ Mini Arena Online</h1>
+        <div class="sub">Juega con tus amigos desde el celular</div>
+      </div>
+      <div id="stats" class="stats">⭐ 0<br>❤️ 100</div>
+    </div>
+
+    <div class="menu">
+      <input id="name" maxlength="12" autocomplete="nickname" placeholder="Tu nombre" aria-label="Tu nombre">
+      <button id="join" type="button">Entrar</button>
+    </div>
+
+    <div id="arena" aria-label="Arena de juego">
+      <div id="me" class="entity player" hidden>🙂<span class="hp"><i id="myHp"></i></span></div>
+      <div id="coin" class="entity coin">★</div>
+    </div>
+
+    <div class="controls" aria-label="Movimiento">
+      <span class="empty"></span><button type="button" data-d="up" aria-label="Arriba">▲</button><span class="empty"></span>
+      <button type="button" data-d="left" aria-label="Izquierda">◀</button><button type="button" data-d="down" aria-label="Abajo">▼</button><button type="button" data-d="right" aria-label="Derecha">▶</button>
+    </div>
+
+    <div class="actions">
+      <button id="attack" type="button" disabled>⚔️ Ataque</button>
+      <button id="dash" type="button" disabled>💨 Dash</button>
+      <button id="restart" type="button" disabled>🔄 Reiniciar</button>
+    </div>
+
+    <div id="status">Conéctate al servidor para jugar online.</div>
+    <div class="hint">También puedes usar WASD o las flechas en PC.</div>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    (() => {
+      'use strict';
+
+      const socket = io({ transports: ['websocket', 'polling'] });
+      const arena = document.getElementById('arena');
+      const coin = document.getElementById('coin');
+      const stats = document.getElementById('stats');
+      const statusEl = document.getElementById('status');
+      const hpBar = document.getElementById('myHp');
+      const nameInput = document.getElementById('name');
+      const joinButton = document.getElementById('join');
+      const actionButtons = [
+        document.getElementById('attack'),
+        document.getElementById('dash'),
+        document.getElementById('restart'),
+      ];
+
+      const keys = { up: false, down: false, left: false, right: false };
+      const lastInput = { up: false, down: false, left: false, right: false };
+      let joined = false;
+      let myId = null;
+      let desiredJoin = false;
+      let playerName = '';
+
+      const setActionsEnabled = (enabled) => actionButtons.forEach((button) => { button.disabled = !enabled; });
+
+      function place(element, x, y) {
+        element.style.left = `${x * 100}%`;
+        element.style.top = `${y * 100}%`;
+      }
+
+      function getOrCreatePlayer(id, isSelf) {
+        let element = document.getElementById(`p_${id}`);
+        if (!element) {
+          element = document.createElement('div');
+          element.id = `p_${id}`;
+          element.className = `entity ${isSelf ? 'player' : 'other'}`;
+          element.textContent = isSelf ? '🙂' : '😎';
+          if (!isSelf) {
+            const bar = document.createElement('span');
+            bar.className = 'hp';
+            bar.innerHTML = '<i></i>';
+            element.appendChild(bar);
+          }
+          arena.appendChild(element);
+        }
+        return element;
+      }
+
+      function render(state) {
+        if (!state || typeof state !== 'object') return;
+
+        if (state.coin) place(coin, state.coin.x, state.coin.y);
+
+        const activeIds = new Set(Object.keys(state.players || {}));
+
+        Object.entries(state.players || {}).forEach(([id, player]) => {
+          const isSelf = id === myId;
+          const element = getOrCreatePlayer(id, isSelf);
+          place(element, player.x, player.y);
+
+          const bar = element.querySelector('.hp i');
+          if (bar) bar.style.width = `${Math.max(0, Math.min(100, player.hp))}%`;
+
+          if (isSelf) {
+            hpBar.style.width = `${Math.max(0, Math.min(100, player.hp))}%`;
+            stats.innerHTML = `⭐ ${Math.round(player.score)}<br>❤️ ${Math.round(player.hp)}`;
+          }
+        });
+
+        document.querySelectorAll('[id^="p_"]').forEach((element) => {
+          if (!activeIds.has(element.id.slice(2))) element.remove();
+        });
+
+        (state.enemies || []).forEach((enemy) => {
+          let element = document.getElementById(`e_${enemy.id}`);
+          if (!element) {
+            element = document.createElement('div');
+            element.id = `e_${enemy.id}`;
+            element.className = 'entity enemy';
+            element.textContent = '👾';
+            arena.appendChild(element);
+          }
+          place(element, enemy.x, enemy.y);
+          element.style.opacity = enemy.hp <= 0 ? '0.25' : '1';
+        });
+      }
+
+      function emitInput() {
+        if (!joined) return;
+        const changed = Object.keys(keys).some((key) => keys[key] !== lastInput[key]);
+        if (!changed) return;
+        Object.assign(lastInput, keys);
+        socket.emit('input', { ...keys });
+      }
+
+      function releaseDirections() {
+        Object.keys(keys).forEach((key) => { keys[key] = false; });
+        emitInput();
+      }
+
+      function join() {
+        const cleaned = (nameInput.value || '').trim().slice(0, 12);
+        playerName = cleaned || 'Jugador';
+        nameInput.value = playerName;
+        desiredJoin = true;
+        if (socket.connected) socket.emit('join', { name: playerName });
+      }
+
+      socket.on('connect', () => {
+        statusEl.textContent = desiredJoin ? '🟢 Conectado. Entrando...' : '🟢 Servidor conectado. Escribe tu nombre y pulsa Entrar.';
+        if (desiredJoin && !joined) socket.emit('join', { name: playerName || 'Jugador' });
+      });
+
+      socket.on('connect_error', () => {
+        statusEl.textContent = '🟠 No se pudo conectar. Reintentando...';
+      });
+
+      socket.on('disconnect', () => {
+        joined = false;
+        myId = null;
+        setActionsEnabled(false);
+        statusEl.textContent = '🔴 Desconectado. Intentando reconectar...';
+      });
+
+      socket.on('joined', ({ id }) => {
+        myId = id;
+        joined = true;
+        setActionsEnabled(true);
+        statusEl.textContent = '🟢 ¡Estás dentro! Comparte la URL con tus amigos.';
+      });
+
+      socket.on('joinError', (message) => {
+        joined = false;
+        setActionsEnabled(false);
+        statusEl.textContent = `🔴 ${message || 'No se pudo entrar.'}`;
+      });
+
+      socket.on('state', render);
+      socket.on('message', (message) => {
+        if (joined) statusEl.textContent = String(message).slice(0, 80);
+      });
+
+      joinButton.addEventListener('click', join);
+      nameInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') join();
+      });
+
+      document.querySelectorAll('[data-d]').forEach((button) => {
+        const direction = button.dataset.d;
+        const press = (event) => {
+          event.preventDefault();
+          if (button.setPointerCapture) button.setPointerCapture(event.pointerId);
+          keys[direction] = true;
+          emitInput();
+        };
+        const release = (event) => {
+          event.preventDefault();
+          keys[direction] = false;
+          emitInput();
+        };
+        button.addEventListener('pointerdown', press);
+        button.addEventListener('pointerup', release);
+        button.addEventListener('pointercancel', release);
+        button.addEventListener('lostpointercapture', () => {
+          keys[direction] = false;
+          emitInput();
+        });
+      });
+
+      const keyboardMap = {
+        ArrowUp: 'up', w: 'up',
+        ArrowDown: 'down', s: 'down',
+        ArrowLeft: 'left', a: 'left',
+        ArrowRight: 'right', d: 'right'
+      };
+
+      addEventListener('keydown', (event) => {
+        const direction = keyboardMap[event.key];
+        if (!direction) return;
+        event.preventDefault();
+        keys[direction] = true;
+        emitInput();
+      });
+
+      addEventListener('keyup', (event) => {
+        const direction = keyboardMap[event.key];
+        if (!direction) return;
+        event.preventDefault();
+        keys[direction] = false;
+        emitInput();
+      });
+
+      addEventListener('blur', releaseDirections);
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) releaseDirections();
+      });
+
+      setInterval(() => {
+        if (!joined) return;
+        socket.emit('input', { ...keys });
+        Object.assign(lastInput, keys);
+      }, 100);
+
+      document.getElementById('attack').addEventListener('click', () => {
+        if (joined) socket.emit('attack');
+      });
+
+      document.getElementById('dash').addEventListener('click', () => {
+        if (joined) socket.emit('dash', { ...keys });
+      });
+
+      document.getElementById('restart').addEventListener('click', () => {
+        if (joined) socket.emit('restart');
+      });
+
+      setActionsEnabled(false);
+      hpBar.style.width = '100%';
+      document.getElementById('me').hidden = true;
+    })();
+  </script>
+</body>
+</html>
